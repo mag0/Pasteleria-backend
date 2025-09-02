@@ -4,7 +4,6 @@ import cors from "cors";
 import routerProduct from "./Routers/routerProduct";
 import { connectDB } from "./config/db";
 import { corsConfig } from "./config/cors";
-import path from "path";
 
 connectDB();
 
@@ -14,8 +13,6 @@ app.use(cors(corsConfig));
 
 // Leer datos de formularios
 app.use(express.json());
-
-app.use("/uploads", express.static(path.join(__dirname, "..", "public", "uploads")));
 
 app.use('/', routerProduct);
 

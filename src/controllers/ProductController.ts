@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import Product from "../models/Product";
-import fs from "fs";
-import path from "path";
+import cloudinary from '../config/cloudinary';
+import { v4 as uuid } from 'uuid';
 
 interface MulterRequest extends Request {
     file: Express.Multer.File;
@@ -33,41 +33,42 @@ export class ProductController {
         }
     }
 
-    static async createProduct(req: MulterRequest, res: Response) {
+    static async createProduct(req: Request, res: Response) {
         try {
             if (!req.file) {
-                return res.status(400).json({ message: "La imagen no puede estar vacía" });
+                return res.status(400).json({ message: 'La imagen no puede estar vacía' });
             }
 
             const { name, price, description, category } = req.body;
 
             const existingName = await Product.findOne({ name });
             if (existingName) {
-                const imagePath = path.resolve("public", "uploads", req.file.filename);
-                if (fs.existsSync(imagePath)) {
-                    fs.unlinkSync(imagePath);
-                }
-                return res.status(409).json({ message: "Ya existe un producto con ese nombre" });
+                return res.status(409).json({ message: 'Ya existe un producto con ese nombre' });
             }
 
-            const imagePath = `/uploads/${req.file.filename}`;
+            const uploadResult = await new Promise((resolve, reject) => {
+                cloudinary.uploader.upload_stream(
+                    { folder: 'productos', public_id: uuid() },
+                    (error, result) => {
+                        if (error || !result) reject(error);
+                        else resolve(result);
+                    }
+                ).end(req.file.buffer);
+            }) as { secure_url: string; public_id: string };
 
             const newProduct = new Product({
                 name,
                 price,
                 description,
                 category,
-                image: imagePath
+                imageUrl: uploadResult.secure_url,
+                imagePublicId: uploadResult.public_id,
             });
 
             await newProduct.save();
             res.status(201).json(newProduct);
         } catch (error: any) {
-            if (error.code === 11000 && error.keyPattern?.image) {
-                return res.status(409).json({ message: "Ya existe un producto con esa imagen" });
-            }
-
-            res.status(500).json({ message: error.message });
+            res.status(500).json({ message: error.message || 'Error al crear el producto' });
         }
     }
 
@@ -81,13 +82,25 @@ export class ProductController {
                 return res.status(404).json({ message: "Producto no encontrado" });
             }
 
-            // Si hay nueva imagen, eliminar la anterior del disco
-            if (req.file && product.image) {
-                const oldImagePath = path.resolve("public", "uploads", product.image.replace("/uploads/", ""));
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
+            if (req.file) {
+                // Eliminar imagen anterior si existe
+                if (product.imagePublicId) {
+                    await cloudinary.uploader.destroy(product.imagePublicId);
                 }
-                product.image = `/uploads/${req.file.filename}`;
+
+                // Subir nueva imagen desde buffer
+                const uploadResult = await new Promise((resolve, reject) => {
+                    cloudinary.uploader.upload_stream(
+                        { folder: "bakery-products", public_id: uuid() },
+                        (error, result) => {
+                            if (error || !result) reject(error);
+                            else resolve(result);
+                        }
+                    ).end(req.file.buffer);
+                }) as { secure_url: string; public_id: string };
+
+                product.imageUrl = uploadResult.secure_url;
+                product.imagePublicId = uploadResult.public_id;
             }
 
             const existingName = await Product.findOne({ name });
@@ -115,13 +128,9 @@ export class ProductController {
                 return res.status(404).json({ message: "Producto no encontrado" });
             }
 
-            // Eliminar imagen del disco si existe
-            if (product.image) {
-                const imagePath = path.resolve("public", "uploads", product.image.replace("/uploads/", ""));
-
-                if (fs.existsSync(imagePath)) {
-                    fs.unlinkSync(imagePath);
-                }
+            // Eliminar imagen de Cloudinary si existe
+            if (product.imagePublicId) {
+                await cloudinary.uploader.destroy(product.imagePublicId);
             }
 
             await product.deleteOne();
