@@ -1,9 +1,10 @@
 import express from "express";
 import 'dotenv/config';
 import cors from "cors";
-import router from "./router";
+import routerProduct from "./Routers/routerProduct";
 import { connectDB } from "./config/db";
 import { corsConfig } from "./config/cors";
+import path from "path";
 
 connectDB();
 
@@ -14,6 +15,8 @@ app.use(cors(corsConfig));
 // Leer datos de formularios
 app.use(express.json());
 
-app.use('/', router);
+app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
+
+app.use('/', routerProduct);
 
 export default app

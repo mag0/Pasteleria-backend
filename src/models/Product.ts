@@ -9,10 +9,10 @@ export interface IProduct extends Document {
 }
 
 const ProductSchema: Schema = new Schema({
-    name: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true, unique: true },
     price: { type: Number, required: true, min: 0 },
     description: { type: String, required: true },
-    image: { type: String, required: true },
+    image: { type: String, required: true, unique: true },
     category: { type: String, required: true, trim: true }
 });
 
