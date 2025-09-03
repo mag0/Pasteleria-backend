@@ -29,4 +29,6 @@ router.delete('/products/:id',
     handleInputErrors,
     ProductController.deleteProduct);
 
+router.get('/ping', (_, res) => res.sendStatus(200));
+
 export default router;
